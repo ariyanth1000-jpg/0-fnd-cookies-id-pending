@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{margin:0;font-family:system-ui;background:#f1f2f6;}
+.container{padding:12px;}
+.topLine{display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:12px;flex-wrap:wrap;}
+.headlineBox{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:nowrap;width:100%;flex-wrap:wrap;}
+.totalBox, .activeBox{background:#111;color:#fff;padding:6px 10px;border-radius:10px;font-size:14px;font-weight:700;text-align:center;white-space:nowrap;}
+.searchFilter{padding:6px 10px;border-radius:8px;border:1px solid #ccc;font-size:14px;flex:1;min-width:150px;}
+.profile{display:flex;align-items:flex-start;background:Pink;border-radius:12px;padding:12px;margin-bottom:12px;box-shadow:0 4px 10px rgba(0,0,0,.08);}
+.logo{width:70px;height:70px;border-radius:50%;background:#1877f2;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:26px;font-weight:bold;margin-right:12px;flex-shrink:0;}
+.topName{font-size:12px;font-weight:600;margin-top:4px;text-align:center;color:#fff;line-height:1.2;}
+.right{flex:1;display:flex;flex-direction:column;gap:8px;}
+.nameBtn{position:relative;padding:12px;border-radius:10px;text-align:center;font-size:18px;font-weight:700;color:#000;background:#fff;z-index:1;overflow:hidden;}
+.nameBtn::before{content:"";position:absolute;top:-2px;left:-2px;right:-2px;bottom:-2px;border-radius:12px;background:linear-gradient(90deg, red, orange, yellow, green, cyan, blue, violet, red);background-size:400%;animation:rainbow 30s linear infinite;z-index:-1;}
+@keyframes rainbow{0%{background-position:0%}100%{background-position:400%}}
+.buttons{display:flex;gap:8px;}
+.buttons button{flex:1;padding:10px;border:none;border-radius:8px;font-weight:600;color:white;}
+.uidBtn{background:#1877f2;}
+.accessBtn{background:#ff9800;}
+.overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);display:none;z-index:10;}
+.card{background:white;width:95%;max-width:900px;margin:60px auto;border-radius:10px;padding:12px;}
+.copy{width:100%;padding:10px;border:none;border-radius:8px;background:#28a745;color:white;font-weight:600;margin-bottom:10px;}
+.scroll{overflow-x:auto;}
+.line{display:flex;min-width:600px;border-bottom:1px solid #eee;padding:6px 0;}
+.line div{flex:1;text-align:center;font-size:14px;white-space:nowrap;}
+.loginBox{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border-radius:12px;box-shadow:0 8px 20px rgba(0,0,0,.3);display:none;z-index:20;width:260px;}
+.loginBox input{width:100%;padding:10px;margin-bottom:10px;border:1px solid #ccc;border-radius:8px;}
+.loginBox button{width:100%;padding:10px;border:none;border-radius:8px;background:#28a745;color:white;font-weight:600;}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="topLine">
+    <div class="headlineBox">
+      <div class="totalBox" id="totalCount">Total ID: 0</div>
+      <input type="text" id="bSearch" class="searchFilter" placeholder="Search Name or Student ID...">
+      <div class="activeBox" id="activeCount">0</div>
+    </div>
+  </div>
+  <div id="profiles"></div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="card" id="result"></div>
+</div>
+
+<div class="loginBox" id="loginBox">
+  <input type="password" id="password" placeholder="Password">
+  <button id="loginBtn">Login</button>
+</div>
+
+<script>
+var sheetURL="https://docs.google.com/spreadsheets/d/1F7xVJwbVfWhs6riyK7QQdeGQG-LCt5weDhl_zs-iyZA/gviz/tq?tqx=out:json";
+var sheetData=[];
+var currentStudentID="";
+var top10Names=["Legend","Champion","Hero","Master","Expert","Boss","Warrior","Wise","Learner","Poor"];
+
+fetch(sheetURL).then(r=>r.text()).then(d=>{
+  var json=JSON.parse(d.substr(47).slice(0,-2));
+  json.table.rows.forEach(r=>{
+    sheetData.push([
+      r.c[1]?.v||"", // B column
+      r.c[2]?.v||"", // C column UID
+      r.c[3]?.v||"", // D
+      r.c[4]?.v||"", // E
+      r.c[5]?.v||"", // F
+      r.c[6]?.v||""  // G
+    ]);
+  });
+  renderProfiles();
+});
+
+function renderProfiles(){
+  // Group by last number in B column
+  var groups={};
+  sheetData.forEach(x=>{
+    var match=x[0].match(/\d+$/); 
+    if(match){
+      var key=match[0];
+      if(!groups[key]) groups[key]={count:0, mainName:x[0], items:[]};
+      groups[key].count++;
+      groups[key].items.push(x);
+    }
+  });
+
+  var searchValue=document.getElementById("bSearch").value.toLowerCase();
+  var filteredKeys=Object.keys(groups).filter(k=>groups[k].mainName.toLowerCase().includes(searchValue));
+
+  // Total ID = sum of all logo counts
+  let totalCount = 0;
+  filteredKeys.forEach(k => { totalCount += groups[k].count; });
+  document.getElementById("totalCount").innerText="Total ID: "+totalCount;
+
+  // Active = just number of filtered keys
+  document.getElementById("activeCount").innerText=filteredKeys.length;
+
+  filteredKeys.sort((a,b)=>groups[b].count-groups[a].count);
+
+  var profiles=document.getElementById("profiles");
+  profiles.innerHTML="";
+
+  filteredKeys.forEach((key,index)=>{
+    var grp=groups[key];
+    var div=document.createElement("div");
+    div.className="profile";
+
+    var topName=top10Names[index]||"";
+
+    div.innerHTML=`
+      <div class="logo">
+        ${grp.count}
+        <div class="topName">${topName}</div>
+      </div>
+      <div class="right">
+        <div class="nameBtn">${grp.mainName}</div>
+        <div class="buttons">
+          <button class="uidBtn">Show UID</button>
+          <button class="accessBtn">Full Access</button>
+        </div>
+      </div>
+    `;
+    profiles.appendChild(div);
+
+    var uidBtn=div.querySelector(".uidBtn");
+    var accessBtn=div.querySelector(".accessBtn");
+
+    uidBtn.onclick=function(){
+      var copy=grp.items.map(x=>x[1]).join("\n");
+      var html=`<button class="copy" onclick="navigator.clipboard.writeText(\`${copy}\`)">Copy</button>`;
+      grp.items.forEach(x=>{
+        html+=`<div style="text-align:center;padding:6px">${x[1]}</div>`;
+      });
+      document.getElementById("result").innerHTML=html;
+      document.getElementById("overlay").style.display="block";
+    };
+
+    accessBtn.onclick=function(){
+      currentStudentID=(key);
+      document.getElementById("password").value="";
+      document.getElementById("loginBox").style.display="block";
+    };
+  });
+}
+
+document.getElementById("bSearch").addEventListener("input",()=>{renderProfiles();});
+
+document.getElementById("loginBtn").onclick=function(){
+  var pwd=document.getElementById("password").value;
+  var lastTwo=currentStudentID.slice(-2);
+  var correct=(Number(currentStudentID)*Number(lastTwo))+2580;
+  if(String(correct)==pwd){
+    var filtered=sheetData.filter(x=>x[0].includes(currentStudentID));
+    var copy=filtered.map(x=>`${x[1]} | ${x[2]} | ${x[3]} | ${x[4]}`).join("\n");
+    var html=`<button class="copy" onclick="navigator.clipboard.writeText(\`${copy}\`)">Copy</button><div class="scroll">`;
+    filtered.forEach(x=>{
+      html+=`<div class="line">
+        <div>${x[1]}</div>
+        <div>${x[2]}</div>
+        <div>${x[3]}</div>
+        <div>${x[4]}</div>
+      </div>`;
+    });
+    html+="</div>";
+    document.getElementById("result").innerHTML=html;
+    document.getElementById("overlay").style.display="block";
+    document.getElementById("loginBox").style.display="none";
+  } else {alert("Wrong Password");}
+};
+
+document.addEventListener("click",function(e){
+  var box=document.getElementById("loginBox");
+  if(box.style.display=="block" && !box.contains(e.target) && !e.target.classList.contains("accessBtn")){
+    box.style.display="none";
+  }
+});
+
+document.getElementById("overlay").onclick=function(e){
+  if(e.target.id=="overlay") this.style.display="none";
+};
+</script>
+
+</body>
+</html>
